@@ -1,18 +1,21 @@
 import random
+import copy
 
 
 class Deck(object):
     def __init__(self, deck_qty, custom_suits=None, custom_values=None):
         self.suits = 'HSDC' if not custom_suits else custom_suits
         self.values = '23456789TJQKA' if not custom_values else custom_values
-        self.deck = []
+        self.playing_deck = []
         self.deck_qty = deck_qty
 
-    def shuffle(self):
+    def shuffle(self, deck):
         for v in self.values:
             for s in self.suits:
-                self.deck.append('%s-%s' % (v, s,))
-        return self.deck * self.deck_qty
+                deck.append('%s-%s' % (v, s,))
+
+        random.shuffle(deck * self.deck_qty)
+        return deck
 
 
 class Game(object):
@@ -28,14 +31,51 @@ class Game(object):
         elif len(self.players) > self.max_players:
             print 'too many players trying to play'
         else:
-            for i in xrange(self.cards_per_player):
-                for player in self.players:
-                    player.hand.append(self.deal())
-            print 'deal to play'
+            if not self.shuffled_deck or len(self.shuffled_deck) < (
+                    self.cards_per_player * len(self.players)):
+                self.shuffled_deck = self.deck.shuffle(self.deck.playing_deck)
+
+                for i in xrange(self.cards_per_player):
+                    for player in self.players:
+                        player.hand.append(self.deal())
+                print 'deal to play'
+
+    def bet(self):
+        for player in self.players:
+            print player.name, 'Here is your hand: ', player.hand
+            var = raw_input('Please place bet, 0 to pass.')
+            if var == 0:
+                continue
+            else:
+                self.pot += int(var)
+                player.money -= int(var)
+        winner = random.choice(self.players)
+        print 'the winner is: ', winner.name
+        winner.money += self.pot
+        self.pot = 0
+        print 'winner\'s new pot is: ', winner.money
+        self.collect_cards()
+        self.play_another_hand()
+
+    def play_another_hand(self):
+        players = copy.copy(self.players)
+        for player in players:
+            input_msg = "%s play another hand? (y/n)" % (player.name, )
+            var = raw_input(input_msg)
+            if var not in ['y', 'n']:
+                var = raw_input('please indicate with \'y\' or \'n\'')
+
+            if var == 'n':
+                player.leave_game(self)
+
+        if self.players:
+            print 'playing another hand',
+            self.play()
 
     def deal(self):
-        shuffled_deck = self.deck.shuffle()
-        return random.choice(shuffled_deck)
+        card = random.choice(self.shuffled_deck)
+        self.shuffled_deck.remove(card)
+        return card
 
 
 class five_card_stud(Game):
@@ -47,10 +87,11 @@ class five_card_stud(Game):
         self.cards_per_player = 5
         self.max_players = 5
         self.min_players = 2
-        self.dealer = True
         self.deck_qty = 1
         self.shuffle_after_hand = True
+        self.shuffled_deck = None
         self.deck = Deck(self.deck_qty)
+        self.pot = 0
 
 
 class Gambler(object):
@@ -67,8 +108,8 @@ class Dealer(Gambler):
 
 
 class Player(Gambler):
-    def __init__(self, name, buy_in, hand=None):
-        self.buy_in = buy_in
+    def __init__(self, name, money, hand=None):
+        self.money = money
         self.name = name
         self.hand = []
 
@@ -78,11 +119,14 @@ class Player(Gambler):
     def bet(self):
         print 'betplay'
 
-    def leave_game(self):
+    def leave_game(self, game):
+        game.players.remove(self)
         print 'leave'
 
-
-fcs = five_card_stud()
-james = fcs.join('james', 100)
-john = fcs.join('john', 100)
-fcs.play()
+if __name__ == "__main__":
+    fcs = five_card_stud()
+    james = fcs.join('James', 100)
+    john = fcs.join('John', 100)
+    michael = fcs.join('Michael', 100)
+    fcs.play()
+    fcs.bet()
